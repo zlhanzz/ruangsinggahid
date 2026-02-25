@@ -1,0 +1,7 @@
+{
+  "name": "RuangSinggah.id",
+  "description": "A modern digital platform for verified student boarding house (kost) listings and databases, designed for trust and transparency in the Indonesian student housing market.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
