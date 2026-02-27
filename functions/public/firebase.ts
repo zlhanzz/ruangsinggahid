@@ -1,6 +1,6 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
 // Konfigurasi Firebase Anda
@@ -31,7 +31,7 @@ const authModular = getAuth(app);
 const storageModular = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-export { dbModular, app, authModular, storageModular, googleProvider };
+export { dbModular, app, authModular, storageModular, googleProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged };
 // For backward compatibility within the app during transition
 export const auth = authModular;
 export const db = dbModular;

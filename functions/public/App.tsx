@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { auth, db, onAuthStateChanged } from './firebase';
 import { Page, Kost } from './types';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -32,23 +32,37 @@ const App: React.FC = () => {
     id: string;
   } | null>(null);
 
-  // History Tracking for "Kembali/Back" feature
-  const pageHistory = useRef<Page[]>([Page.HOME]);
+  // Synkronisasi URL Hash untuk mengaktifkan tombol Back Browser
   useEffect(() => {
-    const currentTop = pageHistory.current[pageHistory.current.length - 1];
-    if (currentTop !== activePage) {
-      pageHistory.current.push(activePage);
-      if (pageHistory.current.length > 20) {
-        pageHistory.current.shift(); // keep size manageable
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '') as Page;
+      if (Object.values(Page).includes(hash)) {
+        setActivePage(hash);
+      } else if (!window.location.hash) {
+        setActivePage(Page.HOME);
       }
+    };
+
+    // Jalankan satu kali saat page diload awal
+    if (window.location.hash) {
+      handleHashChange();
+    }
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update hash tatkala status dari dalam React memicu pindah halaman
+  useEffect(() => {
+    const currentHash = window.location.hash.replace('#', '');
+    if (currentHash !== activePage) {
+      window.location.hash = activePage;
     }
   }, [activePage]);
 
   const handleBackNavigation = () => {
-    if (pageHistory.current.length > 1) {
-      pageHistory.current.pop(); // Remove current
-      const prev = pageHistory.current[pageHistory.current.length - 1];
-      setActivePage(prev);
+    if (window.history.length > 2) { // Asumsikan ada history yg bisa di-pop
+      window.history.back();
     } else {
       setActivePage(user?.role === 'admin' ? Page.DASHBOARD_ADMIN : Page.HOME);
     }

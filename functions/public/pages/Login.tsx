@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, updateProfile, sendEmailVerification, sendPasswordResetEmail, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, updateProfile, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../firebase';
+import { auth, db, googleProvider, signInWithPopup } from '../firebase';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -45,10 +45,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const resetForm = () => {
-    setFormData({ 
-      email: '', 
-      password: '', 
-      name: '', 
+    setFormData({
+      email: '',
+      password: '',
+      name: '',
       phone: ''
     });
     setErrorMsg('');
@@ -63,7 +63,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      
+
       // RELOAD USER TO GET FRESH STATUS
       if (userCredential.user) {
         await userCredential.user.reload();
@@ -101,7 +101,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      
+
       if (userCredential.user) {
         // 1. Update Firebase Auth Profile (DisplayName)
         await updateProfile(userCredential.user, {
@@ -110,27 +110,27 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         // 2. Save User Profile to Firestore (Persistent Storage)
         await setDoc(doc(db, 'users', userCredential.user.uid), {
-            name: formData.name,
-            phone: formData.phone,
-            email: formData.email,
-            role: 'user',
-            createdAt: new Date().toISOString()
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          role: 'user',
+          createdAt: new Date().toISOString()
         }, { merge: true });
 
         // 3. Backup to LocalStorage (Just in case)
         const profileData = {
-            name: formData.name, 
-            phone: formData.phone,
-            joinedAt: new Date().toISOString()
+          name: formData.name,
+          phone: formData.phone,
+          joinedAt: new Date().toISOString()
         };
         localStorage.setItem(`user_profile_${formData.email}`, JSON.stringify(profileData));
-        
+
         // 4. Send Verification
         await sendEmailVerification(userCredential.user);
-        
+
         // 5. Force Logout
         await signOut(auth);
-        
+
         setVerificationSent(true);
       }
     } catch (error) {
@@ -167,16 +167,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMsg('');
-    
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
-         // Create/Update user doc in Firestore for Google Login too
-         await setDoc(doc(db, 'users', result.user.uid), {
-             name: result.user.displayName,
-             email: result.user.email,
-             lastLogin: new Date().toISOString()
-         }, { merge: true });
+        // Create/Update user doc in Firestore for Google Login too
+        await setDoc(doc(db, 'users', result.user.uid), {
+          name: result.user.displayName,
+          email: result.user.email,
+          lastLogin: new Date().toISOString()
+        }, { merge: true });
       }
 
       alert('Berhasil masuk dengan Google!');
@@ -195,18 +195,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden p-8 text-center animate-in zoom-in-95">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-             <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" /></svg>
+            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" /></svg>
           </div>
           <h2 className="text-2xl font-black text-gray-900 mb-2">Verifikasi Email Terkirim</h2>
           <p className="text-gray-500 mb-8 leading-relaxed">
-            Link verifikasi telah dikirim ke <strong>{formData.email}</strong>.<br/>
+            Link verifikasi telah dikirim ke <strong>{formData.email}</strong>.<br />
             Silakan cek kotak masuk atau folder spam Anda, lalu verifikasi akun sebelum login.
           </p>
-          <button 
+          <button
             onClick={() => {
-                setVerificationSent(false);
-                setMode('LOGIN');
-                resetForm();
+              setVerificationSent(false);
+              setMode('LOGIN');
+              resetForm();
             }}
             className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-orange-600 transition-all"
           >
@@ -222,7 +222,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
         <div className="p-8 sm:p-12">
-          
+
           {/* Header Title */}
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-gray-900">
@@ -240,48 +240,48 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           {/* Messages */}
           {errorMsg && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-               <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-               <p className="text-xs font-bold text-red-500 text-left">{errorMsg}</p>
+              <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-xs font-bold text-red-500 text-left">{errorMsg}</p>
             </div>
           )}
 
           {successMsg && (
             <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-               <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-               <p className="text-xs font-bold text-green-500 text-left">{successMsg}</p>
+              <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-xs font-bold text-green-500 text-left">{successMsg}</p>
             </div>
           )}
 
           <form className="space-y-4" onSubmit={
-            mode === 'LOGIN' ? handleLogin : 
-            mode === 'REGISTER' ? handleRegister : 
-            handleForgotPassword
+            mode === 'LOGIN' ? handleLogin :
+              mode === 'REGISTER' ? handleRegister :
+                handleForgotPassword
           }>
-            
+
             {/* REGISTER FIELDS - SIMPLIFIED */}
             {mode === 'REGISTER' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nama Lengkap</label>
-                    <input
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nama Lengkap</label>
+                  <input
                     type="text"
                     required
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
                     placeholder="Budi Santoso"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    />
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
                 </div>
                 <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nomor WhatsApp</label>
-                    <input
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nomor WhatsApp</label>
+                  <input
                     type="tel"
                     required
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
                     placeholder="0812xxxx"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    />
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
                 </div>
               </div>
             )}
@@ -295,7 +295,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
                 placeholder="nama@gmail.com"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
 
@@ -305,8 +305,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-xs font-bold text-gray-400 uppercase">Kata Sandi</label>
                   {mode === 'LOGIN' && (
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => { setMode('FORGOT_PASSWORD'); setErrorMsg(''); setSuccessMsg(''); }}
                       className="text-xs font-bold text-orange-500 hover:text-orange-600"
                     >
@@ -321,7 +321,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 transition-all"
                     placeholder="••••••••"
                     value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   />
                   <button
                     type="button"
@@ -343,9 +343,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full bg-orange-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 mt-6 ${
-                loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'
-              }`}
+              className={`w-full bg-orange-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 mt-6 ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'
+                }`}
             >
               {loading && (
                 <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -360,7 +359,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             {/* Back Button for Forgot Password */}
             {mode === 'FORGOT_PASSWORD' && (
-              <button 
+              <button
                 type="button"
                 onClick={() => { setMode('LOGIN'); setErrorMsg(''); setSuccessMsg(''); }}
                 className="w-full text-gray-500 font-bold text-sm py-2 hover:text-gray-900"
@@ -383,26 +382,26 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-4">
-                <button 
+                <button
                   onClick={handleGoogleLogin}
                   type="button"
                   className="flex items-center justify-center py-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors gap-2 text-sm font-semibold text-gray-700 col-span-2 sm:col-span-1"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
                   Google
                 </button>
-                <button 
+                <button
                   type="button"
                   disabled
                   className="flex items-center justify-center py-3 border border-gray-100 rounded-xl bg-gray-50 text-gray-400 gap-2 text-sm font-semibold cursor-not-allowed col-span-2 sm:col-span-1"
                 >
                   <svg className="w-5 h-5 opacity-50" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12c0-5.523-4.477-10-10-10z"/>
+                    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12c0-5.523-4.477-10-10-10z" />
                   </svg>
                   Facebook
                 </button>
@@ -414,8 +413,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   <button
                     type="button"
                     onClick={() => {
-                        setMode(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN');
-                        resetForm();
+                      setMode(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN');
+                      resetForm();
                     }}
                     className="text-orange-500 font-bold hover:text-orange-600 transition-colors hover:underline"
                   >
