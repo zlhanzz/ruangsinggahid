@@ -79,15 +79,21 @@ export interface Kost {
 
   // App specific fields
   city: string;
-  campus: string;
   type: 'Putra' | 'Putri' | 'Campur';
   isVerified: boolean;
-  distanceToCampus: string;
   rating: number;
   rules: string[];
+
+  // Arrays for locations and facilities
+  campuses?: { name: string; distance: string; transportMode?: 'walk' | 'motorcycle' | 'car' | 'transit' }[];
+  publicFacilities?: { name: string; distance: string; transportMode?: 'walk' | 'motorcycle' | 'car' | 'transit' }[];
   roomTypes: RoomType[];
   reviews: Review[];
   virtualTourUrl?: string;
+
+  // Additional Fees
+  additionalFeePrice?: number;
+  additionalFeeName?: string;
 }
 
 export interface ImageUrlObject {

@@ -10,7 +10,6 @@ export const MOCK_KOSTS: Kost[] = [
     type: 'Putri',
     address: 'Dramaga, Bogor',
     city: 'Bogor',
-    campus: 'IPB',
     price: 1200000,
     imageUrls: [
       'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800',
@@ -22,7 +21,7 @@ export const MOCK_KOSTS: Kost[] = [
     tiktokUrl: 'https://tiktok.com',
     isVerified: true,
     facilities: ['WiFi 100Mbps', 'CCTV 24 Jam', 'Dapur Bersama', 'Area Parkir Motor', 'Penjaga Kost'],
-    distanceToCampus: '5 menit jalan kaki',
+    campuses: [{ name: 'Universitas Gadjah Mada', distance: '10 Menit', transportMode: 'motorcycle' }],
     rating: 4.8,
     description: 'Kost eksklusif khusus putri dengan lingkungan yang tenang dan asri. Dekat dengan gerbang utama IPB Dramaga. Bangunan baru dengan sirkulasi udara yang sangat baik.',
     rules: ['Khusus Putri', 'Jam malam 22:00 WIB', 'Dilarang merokok', 'Tamu pria dilarang masuk kamar'],
@@ -54,8 +53,8 @@ export const MOCK_KOSTS: Kost[] = [
     ],
     reviews: [],
     location: {
-        lat: -6.559,
-        lng: 106.721
+      lat: -6.559,
+      lng: 106.721
     },
     createdAt: new Date().toISOString()
   },
@@ -67,7 +66,6 @@ export const MOCK_KOSTS: Kost[] = [
     type: 'Putra',
     address: 'Margonda, Depok',
     city: 'Depok',
-    campus: 'UI',
     price: 2500000,
     imageUrls: [
       'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&q=80&w=800',
@@ -77,7 +75,7 @@ export const MOCK_KOSTS: Kost[] = [
     isVerified: true,
     instagramUrl: 'https://instagram.com',
     facilities: ['Gym', 'Kolam Renang', 'WiFi', 'Laundry', 'Coworking Space', 'Cafe'],
-    distanceToCampus: '10 menit jalan kaki',
+    campuses: [{ name: 'Universitas Indonesia', distance: '10 Menit', transportMode: 'walk' }],
     rating: 4.9,
     description: 'Kost putra eksklusif di pusat Margonda dengan fasilitas setara apartemen. Sangat cocok untuk mahasiswa yang menginginkan produktivitas tinggi.',
     rules: ['Khusus Putra', 'Tamu dilarang menginap', 'Dilarang berisik di atas jam 21:00'],
@@ -101,8 +99,8 @@ export const MOCK_KOSTS: Kost[] = [
     ],
     reviews: [],
     location: {
-        lat: -6.362,
-        lng: 106.832
+      lat: -6.362,
+      lng: 106.832
     },
     createdAt: new Date().toISOString()
   },
@@ -114,16 +112,15 @@ export const MOCK_KOSTS: Kost[] = [
     type: 'Campur',
     address: 'Coblong, Bandung',
     city: 'Bandung',
-    campus: 'ITB',
     price: 1500000,
     imageUrls: [
       'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&q=80&w=800',
-       'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&q=80&w=800'
+      'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&q=80&w=800'
     ],
     isVerified: true,
     tiktokUrl: 'https://tiktok.com',
     facilities: ['Parkir Mobil Luas', 'WiFi', 'Rooftop Area', 'Security 24 Jam'],
-    distanceToCampus: '8 menit naik motor',
+    campuses: [{ name: 'Institut Teknologi Bandung', distance: '8 Menit', transportMode: 'motorcycle' }],
     rating: 4.5,
     description: 'Kost campur dengan suasana asri Bandung. Memiliki rooftop yang nyaman untuk belajar kelompok.',
     rules: ['Campur (Ketentuan Berlaku)', 'Bebas Jam Malam', 'Dilarang membawa hewan peliharaan'],
@@ -147,8 +144,8 @@ export const MOCK_KOSTS: Kost[] = [
     ],
     reviews: [],
     location: {
-        lat: -6.891,
-        lng: 107.611
+      lat: -6.891,
+      lng: 107.611
     },
     createdAt: new Date().toISOString()
   }

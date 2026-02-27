@@ -11,7 +11,7 @@ interface KostDetailProps {
   onStartChat?: (id: string) => void;
   user?: any;
   onLoginRedirect?: () => void;
-  validateProfile?: () => boolean; 
+  validateProfile?: () => boolean;
 }
 
 const InfoSection: React.FC<{ title: string; children: React.ReactNode; defaultOpen?: boolean; className?: string }> = ({ title, children, defaultOpen = true, className = "" }) => {
@@ -19,7 +19,7 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode; defaultO
 
   return (
     <div className={`bg-white lg:bg-transparent rounded-3xl lg:rounded-none overflow-hidden ${className}`}>
-      <div 
+      <div
         onClick={() => { if (window.innerWidth < 1024) setIsOpen(!isOpen); }}
         className="w-full flex items-center justify-between py-5 lg:py-0 lg:mb-6 cursor-pointer lg:cursor-default group px-6 lg:px-0 border-b lg:border-0 border-gray-50"
       >
@@ -40,6 +40,13 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode; defaultO
   );
 };
 
+const TransportIcon: React.FC<{ mode?: string }> = ({ mode }) => {
+  if (mode === 'motorcycle') return <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 16A3 3 0 1 0 5 22A3 3 0 1 0 5 16Z" /><path d="M19 16A3 3 0 1 0 19 22A3 3 0 1 0 19 16Z" /><path d="M5 19H19" /><path d="M6 16L9.673 8.653A2 2 0 0 1 11.458 7.5H16" /><path d="M16 7.5L18.428 12.356A2 2 0 0 0 20.214 13.5H22" /><path d="M11.5 7.5L13.5 3H16" /></svg>;
+  if (mode === 'car') return <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>;
+  if (mode === 'transit') return <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M8 6v6" /><path d="M15 6v6" /><path d="M2 12h19.6" /><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3" /><circle cx="7" cy="18" r="2" /><path d="M9 18h5" /><circle cx="16" cy="18" r="2" /></svg>;
+  return <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 10a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" /><path d="m7 21 3-8 1.5 3" /><path d="m16 21-2-6-1.5-3.5L9.5 10l-1.5 1.5" /><path d="M12 11.5 14 15l2-1.5" /></svg>;
+};
+
 const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user, onLoginRedirect, validateProfile }) => {
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
@@ -48,36 +55,36 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
   const [isPaymentGatewayOpen, setIsPaymentGatewayOpen] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [tempBookingData, setTempBookingData] = useState<any>(null);
-  
+
   const defaultRoom: RoomType = {
-      name: 'Standard Room',
-      size: '3x3',
-      price: kost.price,
-      pricing: [{ period: 'bulanan', price: kost.price }],
-      features: [],
-      roomFacilities: ['Kasur', 'Lemari'],
-      bathroomFacilities: [],
-      isAvailable: true
+    name: 'Standard Room',
+    size: '3x3',
+    price: kost.price,
+    pricing: [{ period: 'bulanan', price: kost.price }],
+    features: [],
+    roomFacilities: ['Kasur', 'Lemari'],
+    bathroomFacilities: [],
+    isAvailable: true
   };
-  
-  const selectedRoom = (kost.roomTypes && kost.roomTypes.length > 0) 
-    ? kost.roomTypes[selectedVariantIdx] 
+
+  const selectedRoom = (kost.roomTypes && kost.roomTypes.length > 0)
+    ? kost.roomTypes[selectedVariantIdx]
     : defaultRoom;
 
   // Auto-select the first available pricing period when room type changes
   useEffect(() => {
-      if (selectedRoom.pricing && selectedRoom.pricing.length > 0) {
-          // Prefer monthly if available, otherwise first available
-          const hasMonthly = selectedRoom.pricing.find(p => p.period === 'bulanan');
-          if (hasMonthly) {
-              setSelectedPeriod('bulanan');
-          } else {
-              setSelectedPeriod(selectedRoom.pricing[0].period);
-          }
+    if (selectedRoom.pricing && selectedRoom.pricing.length > 0) {
+      // Prefer monthly if available, otherwise first available
+      const hasMonthly = selectedRoom.pricing.find(p => p.period === 'bulanan');
+      if (hasMonthly) {
+        setSelectedPeriod('bulanan');
       } else {
-          // Fallback for legacy data
-          setSelectedPeriod('bulanan');
+        setSelectedPeriod(selectedRoom.pricing[0].period);
       }
+    } else {
+      // Fallback for legacy data
+      setSelectedPeriod('bulanan');
+    }
   }, [selectedVariantIdx, selectedRoom]);
 
   const imageUrls = kost.imageUrls || [];
@@ -86,20 +93,20 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
 
   const handleBookingClick = () => {
     if (!selectedRoom.isAvailable) {
-        alert("Mohon maaf, tipe kamar ini sedang penuh.");
-        return;
+      alert("Mohon maaf, tipe kamar ini sedang penuh.");
+      return;
     }
 
     if (!user) {
-        if (confirm("Anda harus login untuk melakukan booking. Login sekarang?")) {
-            onLoginRedirect?.();
-        }
-        return;
+      if (confirm("Anda harus login untuk melakukan booking. Login sekarang?")) {
+        onLoginRedirect?.();
+      }
+      return;
     }
 
     if (validateProfile) {
       const isValid = validateProfile();
-      if (!isValid) return; 
+      if (!isValid) return;
     }
 
     setIsBookingModalOpen(true);
@@ -118,26 +125,28 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
   };
 
   const getPriceForPeriod = (period: string) => {
-      const scheme = selectedRoom.pricing?.find(p => p.period === period);
-      return scheme ? scheme.price : (period === 'bulanan' ? selectedRoom.price : 0);
+    const scheme = selectedRoom.pricing?.find(p => p.period === period);
+    return scheme ? scheme.price : (period === 'bulanan' ? selectedRoom.price : 0);
   };
 
   const activePrice = getPriceForPeriod(selectedPeriod);
 
   // Check if location data is valid (non-zero coordinates)
   const hasValidLocation = kost.location && (kost.location.lat !== 0 || kost.location.lng !== 0);
-  const hasDistance = !!kost.distanceToCampus;
+  const hasCampuses = kost.campuses && kost.campuses.length > 0;
+  const hasPublicFacilities = kost.publicFacilities && kost.publicFacilities.length > 0;
+  const hasLocationSection = hasValidLocation || hasCampuses || hasPublicFacilities;
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${kost.location?.lat || 0},${kost.location?.lng || 0}`;
   const embedMapsUrl = `https://maps.google.com/maps?q=${kost.location?.lat || 0},${kost.location?.lng || 0}&z=16&output=embed`;
 
   const periodLabels: Record<string, string> = {
-      'harian': 'Per Hari',
-      'mingguan': 'Per Minggu',
-      'bulanan': 'Per Bulan',
-      '3bulanan': 'Per 3 Bulan',
-      '6bulanan': 'Per 6 Bulan',
-      'tahunan': 'Per Tahun'
+    'harian': 'Per Hari',
+    'mingguan': 'Per Minggu',
+    'bulanan': 'Per Bulan',
+    '3bulanan': 'Per 3 Bulan',
+    '6bulanan': 'Per 6 Bulan',
+    'tahunan': 'Per Tahun'
   };
 
   // Helper to calculate discount percentage
@@ -152,12 +161,12 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
     if (scheme.period === 'tahunan') durationInMonths = 12;
 
     if (durationInMonths > 1) {
-       const standardPrice = baseMonthlyPrice * durationInMonths;
-       if (scheme.price < standardPrice) {
-           const saving = standardPrice - scheme.price;
-           const percent = Math.round((saving / standardPrice) * 100);
-           return percent > 0 ? percent : 0;
-       }
+      const standardPrice = baseMonthlyPrice * durationInMonths;
+      if (scheme.price < standardPrice) {
+        const saving = standardPrice - scheme.price;
+        const percent = Math.round((saving / standardPrice) * 100);
+        return percent > 0 ? percent : 0;
+      }
     }
     return 0;
   };
@@ -189,7 +198,7 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
       {/* Mobile Sticky Header */}
       <div className="lg:hidden sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-100 px-4 py-4 flex items-center justify-between">
         <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
         <span className="font-bold text-gray-900 truncate max-w-[200px] uppercase tracking-tight text-xs">{kost.title}</span>
         <button onClick={() => onStartChat?.(kost.id)} className="text-orange-500 font-black text-sm uppercase tracking-widest">Tanya</button>
@@ -215,10 +224,10 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
                 </div>
                 <div className="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={prevPhoto} className="p-3 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-orange-500 transition-all border border-white/20">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7"/></svg>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <button onClick={nextPhoto} className="p-3 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white hover:text-orange-500 transition-all border border-white/20">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7"/></svg>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                   </button>
                 </div>
                 <div className="absolute bottom-6 right-6 bg-black/40 backdrop-blur-md text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10">
@@ -233,11 +242,10 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
                     <button
                       key={idx}
                       onClick={() => setCurrentPhoto(idx)}
-                      className={`relative w-20 h-20 lg:w-24 lg:h-24 shrink-0 rounded-2xl overflow-hidden transition-all duration-300 ${
-                        currentPhoto === idx 
-                          ? 'ring-2 ring-orange-500 ring-offset-2 opacity-100 scale-95' 
-                          : 'opacity-50 hover:opacity-100 hover:scale-105'
-                      }`}
+                      className={`relative w-20 h-20 lg:w-24 lg:h-24 shrink-0 rounded-2xl overflow-hidden transition-all duration-300 ${currentPhoto === idx
+                        ? 'ring-2 ring-orange-500 ring-offset-2 opacity-100 scale-95'
+                        : 'opacity-50 hover:opacity-100 hover:scale-105'
+                        }`}
                     >
                       <img src={img} className="w-full h-full object-cover" alt={`Thumbnail ${idx + 1}`} />
                     </button>
@@ -248,49 +256,48 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
 
             {/* Social Media Review Section */}
             {(kost.instagramUrl || kost.tiktokUrl) && (
-                <div className="flex flex-col sm:flex-row gap-4">
-                    {kost.instagramUrl && (
-                        <a href={kost.instagramUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 text-white p-4 rounded-2xl flex items-center justify-center gap-3 hover:opacity-90 transition-opacity shadow-lg shadow-pink-100">
-                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M7.8 2H16.2C19.4 2 22 4.6 22 7.8V16.2C22 19.4 19.4 22 16.2 22H7.8C4.6 22 2 19.4 2 16.2V7.8C2 4.6 4.6 2 7.8 2M7.6 4C5.6 4 4 5.6 4 7.6V16.4C4 18.4 5.6 20 7.6 20H16.4C18.4 20 20 18.4 20 16.4V7.6C20 5.6 18.4 4 16.4 4H7.6M17.25 5.5C17.94 5.5 18.5 6.06 18.5 6.75C18.5 7.44 17.94 8 17.25 8C16.56 8 16 7.44 16 6.75C16 6.06 16.56 5.5 17.25 5.5M12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7M12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z"/></svg>
-                            <span className="font-bold text-xs uppercase tracking-widest">Tonton Review di Instagram</span>
-                        </a>
-                    )}
-                    {kost.tiktokUrl && (
-                        <a href={kost.tiktokUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-black text-white p-4 rounded-2xl flex items-center justify-center gap-3 hover:opacity-80 transition-opacity shadow-lg shadow-gray-200">
-                             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.13-1.47-.12 3.35-.12 6.7 0 10.05-.1 1.63-.58 3.25-1.55 4.58-1.35 1.83-3.67 2.87-5.91 2.8-2.31-.01-4.6-.96-6.11-2.72-1.78-2.03-2.22-5.06-1.12-7.53.94-2.18 3.09-3.79 5.46-4.06.13 1.34.25 2.68.38 4.02-1.15.11-2.32.55-3.08 1.46-.73.91-.91 2.14-.52 3.24.4 1.15 1.43 2.03 2.62 2.23 1.28.2 2.64-.19 3.52-1.12.82-.9.99-2.19.98-3.37-.02-3.34-.02-6.67-.02-10.01V0c.01.01.01.01 0 .02z"/></svg>
-                             <span className="font-bold text-xs uppercase tracking-widest">Tonton Review di TikTok</span>
-                        </a>
-                    )}
-                </div>
+              <div className="flex flex-col sm:flex-row gap-4">
+                {kost.instagramUrl && (
+                  <a href={kost.instagramUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 text-white p-4 rounded-2xl flex items-center justify-center gap-3 hover:opacity-90 transition-opacity shadow-lg shadow-pink-100">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M7.8 2H16.2C19.4 2 22 4.6 22 7.8V16.2C22 19.4 19.4 22 16.2 22H7.8C4.6 22 2 19.4 2 16.2V7.8C2 4.6 4.6 2 7.8 2M7.6 4C5.6 4 4 5.6 4 7.6V16.4C4 18.4 5.6 20 7.6 20H16.4C18.4 20 20 18.4 20 16.4V7.6C20 5.6 18.4 4 16.4 4H7.6M17.25 5.5C17.94 5.5 18.5 6.06 18.5 6.75C18.5 7.44 17.94 8 17.25 8C16.56 8 16 7.44 16 6.75C16 6.06 16.56 5.5 17.25 5.5M12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7M12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" /></svg>
+                    <span className="font-bold text-xs uppercase tracking-widest">Tonton Review di Instagram</span>
+                  </a>
+                )}
+                {kost.tiktokUrl && (
+                  <a href={kost.tiktokUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-black text-white p-4 rounded-2xl flex items-center justify-center gap-3 hover:opacity-80 transition-opacity shadow-lg shadow-gray-200">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.13-1.47-.12 3.35-.12 6.7 0 10.05-.1 1.63-.58 3.25-1.55 4.58-1.35 1.83-3.67 2.87-5.91 2.8-2.31-.01-4.6-.96-6.11-2.72-1.78-2.03-2.22-5.06-1.12-7.53.94-2.18 3.09-3.79 5.46-4.06.13 1.34.25 2.68.38 4.02-1.15.11-2.32.55-3.08 1.46-.73.91-.91 2.14-.52 3.24.4 1.15 1.43 2.03 2.62 2.23 1.28.2 2.64-.19 3.52-1.12.82-.9.99-2.19.98-3.37-.02-3.34-.02-6.67-.02-10.01V0c.01.01.01.01 0 .02z" /></svg>
+                    <span className="font-bold text-xs uppercase tracking-widest">Tonton Review di TikTok</span>
+                  </a>
+                )}
+              </div>
             )}
 
             {/* Video Tour Section */}
             {kost.videoUrls && kost.videoUrls.length > 0 && (
-                <div className="bg-black rounded-[2rem] p-4 lg:p-6 border border-gray-900 shadow-sm overflow-hidden">
-                    <h3 className="text-white text-lg font-black uppercase tracking-tight mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Video Tour
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {kost.videoUrls.map((url, idx) => (
-                            <video 
-                                key={idx} 
-                                src={url} 
-                                controls 
-                                className="w-full aspect-video rounded-xl object-cover bg-gray-800"
-                            />
-                        ))}
-                    </div>
+              <div className="bg-black rounded-[2rem] p-4 lg:p-6 border border-gray-900 shadow-sm overflow-hidden">
+                <h3 className="text-white text-lg font-black uppercase tracking-tight mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Video Tour
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {kost.videoUrls.map((url, idx) => (
+                    <video
+                      key={idx}
+                      src={url}
+                      controls
+                      className="w-full aspect-video rounded-xl object-cover bg-gray-800"
+                    />
+                  ))}
                 </div>
+              </div>
             )}
 
             {/* Main Header Information */}
             <div className="bg-white rounded-[2rem] p-8 lg:p-10 border border-gray-100 shadow-sm">
               <div className="flex flex-wrap items-center gap-3 mb-6">
-                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                  kost.type === 'Putra' ? 'bg-blue-500 text-white' : 
-                  kost.type === 'Putri' ? 'bg-pink-500 text-white' : 
-                  'bg-purple-500 text-white'
-                }`}>{kost.type}</span>
+                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${kost.type === 'Putra' ? 'bg-blue-500 text-white' :
+                  kost.type === 'Putri' ? 'bg-pink-500 text-white' :
+                    'bg-purple-500 text-white'
+                  }`}>{kost.type}</span>
                 {kost.isVerified && (
                   <span className="bg-orange-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2 border border-orange-400 shadow-lg shadow-orange-100 uppercase tracking-widest">
                     Terverifikasi
@@ -336,40 +343,66 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
               </InfoSection>
             )}
 
-            {(hasValidLocation || hasDistance) && (
-                <InfoSection title="Lokasi & Lingkungan">
-                   <div className="space-y-6">
-                     {hasValidLocation && (
-                         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
-                            <iframe 
-                              title="Kost Location"
-                              width="100%" 
-                              height="200" 
-                              style={{ border: 0 }}
-                              loading="lazy" 
-                              allowFullScreen 
-                              src={embedMapsUrl}
-                            ></iframe>
-                         </div>
-                     )}
-                     <div className="flex flex-col sm:flex-row gap-4">
-                       {hasValidLocation && (
-                           <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-white border border-gray-200 text-gray-900 py-4 rounded-2xl font-bold text-center hover:bg-gray-50 transition-colors shadow-sm text-sm uppercase tracking-widest flex items-center justify-center gap-2">
-                             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                             Buka Google Maps
-                           </a>
-                       )}
-                       {hasDistance && (
-                           <div className="flex-1 bg-orange-50 border border-orange-100 text-orange-700 py-4 rounded-2xl font-bold text-center flex flex-col items-center justify-center">
-                             <span className="text-[9px] uppercase tracking-widest opacity-70 mb-1">Jarak ke Kampus</span>
-                             <span className="text-sm">{kost.distanceToCampus}</span>
-                           </div>
-                       )}
-                     </div>
-                   </div>
-                </InfoSection>
+            {hasLocationSection && (
+              <InfoSection title="Lokasi & Lingkungan">
+                <div className="space-y-6">
+                  {hasValidLocation && (
+                    <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
+                      <iframe
+                        title="Kost Location"
+                        width="100%"
+                        height="200"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        allowFullScreen
+                        src={embedMapsUrl}
+                      ></iframe>
+                    </div>
+                  )}
+                  {hasValidLocation && (
+                    <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="w-full bg-white border border-gray-200 text-gray-900 py-4 rounded-2xl font-bold text-center hover:bg-gray-50 transition-colors shadow-sm text-sm uppercase tracking-widest flex items-center justify-center gap-2">
+                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      Buka Google Maps
+                    </a>
+                  )}
+
+                  {hasCampuses && (
+                    <div className="space-y-3 pt-2">
+                      <h4 className="font-bold text-gray-900 text-sm uppercase tracking-widest pl-2">Kampus Terdekat</h4>
+                      <div className="flex flex-wrap gap-3">
+                        {kost.campuses!.map((campus, idx) => (
+                          <div key={idx} className="flex-1 min-w-[200px] bg-orange-50 border border-orange-100 rounded-2xl p-4 flex justify-between items-center gap-3">
+                            <span className="font-bold text-gray-900 truncate">{campus.name}</span>
+                            <span className="flex items-center gap-1.5 text-orange-600 font-bold text-xs bg-white px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
+                              <TransportIcon mode={campus.transportMode} />
+                              <span>{campus.distance}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {hasPublicFacilities && (
+                    <div className="space-y-3 pt-2">
+                      <h4 className="font-bold text-gray-900 text-sm uppercase tracking-widest pl-2">Fasilitas Publik</h4>
+                      <div className="flex flex-wrap gap-3">
+                        {kost.publicFacilities!.map((fac, idx) => (
+                          <div key={idx} className="flex-1 min-w-[200px] bg-blue-50 border border-blue-100 rounded-2xl p-4 flex justify-between items-center gap-3">
+                            <span className="font-bold text-gray-900 truncate">{fac.name}</span>
+                            <span className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-white px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
+                              <TransportIcon mode={fac.transportMode} />
+                              <span>{fac.distance}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </InfoSection>
             )}
-            
+
           </div>
 
           {/* Right Sidebar - Booking Card */}
@@ -385,130 +418,141 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
                     </div>
                     {/* Dynamic Discount Badge in Header if current period is selected */}
                     {selectedRoom.pricing?.map(p => {
-                       if(p.period === selectedPeriod) {
-                          const discount = calculateDiscount(p);
-                          if(discount > 0) {
-                              return (
-                                 <div key={p.period} className="mt-2">
-                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                        Hemat {discount}%
-                                    </span>
-                                 </div>
-                              )
-                          }
-                       }
-                       return null;
+                      if (p.period === selectedPeriod) {
+                        const discount = calculateDiscount(p);
+                        if (discount > 0) {
+                          return (
+                            <div key={p.period} className="mt-2">
+                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                Hemat {discount}%
+                              </span>
+                            </div>
+                          )
+                        }
+                      }
+                      return null;
                     })}
                   </div>
+
+                  {/* Additional Fee Display */}
+                  {kost.additionalFeePrice && kost.additionalFeePrice > 0 ? (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Biaya Tambahan</p>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-900">+{FORMAT_CURRENCY(kost.additionalFeePrice)} <span className="text-xs font-medium text-gray-500">/bulan</span></span>
+                        {kost.additionalFeeName && (
+                          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{kost.additionalFeeName}</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Variant Selector with integrated availability and specs */}
                 {kost.roomTypes && kost.roomTypes.length > 0 && (
                   <div className="mb-6">
-                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Tipe Kamar</label>
-                     <div className="space-y-3">
-                       {kost.roomTypes.map((type, idx) => {
-                         const isAvailable = type.isAvailable !== false;
-                         return (
-                           <div 
-                             key={idx}
-                             onClick={() => setSelectedVariantIdx(idx)}
-                             className={`p-4 rounded-2xl border-2 cursor-pointer transition-all relative ${selectedVariantIdx === idx ? 'border-orange-500 bg-orange-50/50' : 'border-gray-100 hover:border-gray-200'}`}
-                           >
-                              <div className="flex justify-between items-start mb-1">
-                                 <span className="text-xs font-black uppercase tracking-tight text-gray-900">{type.name}</span>
-                                 {/* Availability Badge moved here */}
-                                 <div className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-green-600' : 'bg-red-600'}`}></div>
-                                    {isAvailable ? 'Tersedia' : 'Penuh'}
-                                 </div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Tipe Kamar</label>
+                    <div className="space-y-3">
+                      {kost.roomTypes.map((type, idx) => {
+                        const isAvailable = type.isAvailable !== false;
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => setSelectedVariantIdx(idx)}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all relative ${selectedVariantIdx === idx ? 'border-orange-500 bg-orange-50/50' : 'border-gray-100 hover:border-gray-200'}`}
+                          >
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-xs font-black uppercase tracking-tight text-gray-900">{type.name}</span>
+                              {/* Availability Badge moved here */}
+                              <div className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-green-600' : 'bg-red-600'}`}></div>
+                                {isAvailable ? 'Tersedia' : 'Penuh'}
                               </div>
-                              
-                              {/* Price */}
-                              <p className="text-xs font-medium text-gray-500 mb-2">
-                                  Mulai {FORMAT_CURRENCY(type.pricing?.find(p => p.period === 'bulanan')?.price || type.pricing?.[0]?.price || type.price)}
-                              </p>
+                            </div>
 
-                              {/* Specs/Features moved below price */}
-                              <div className="flex flex-wrap gap-1.5">
-                                <span className="text-[9px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
-                                    {type.size}
+                            {/* Price */}
+                            <p className="text-xs font-medium text-gray-500 mb-2">
+                              Mulai {FORMAT_CURRENCY(type.pricing?.find(p => p.period === 'bulanan')?.price || type.pricing?.[0]?.price || type.price)}
+                            </p>
+
+                            {/* Specs/Features moved below price */}
+                            <div className="flex flex-wrap gap-1.5">
+                              <span className="text-[9px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
+                                {type.size}
+                              </span>
+                              {type.roomFacilities?.slice(0, 2).map((fac, fIdx) => (
+                                <span key={fIdx} className="text-[9px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 truncate max-w-[120px]">
+                                  {fac}
                                 </span>
-                                {type.roomFacilities?.slice(0, 2).map((fac, fIdx) => (
-                                    <span key={fIdx} className="text-[9px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 truncate max-w-[120px]">
-                                        {fac}
-                                    </span>
-                                ))}
-                              </div>
-                           </div>
-                         );
-                       })}
-                     </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
                 {/* Pricing Period Selector (Only if room has multiple pricing options) */}
                 {selectedRoom.pricing && selectedRoom.pricing.length > 0 && (
-                    <div className="mb-6">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Durasi Sewa</label>
-                        <div className="flex flex-wrap gap-2">
-                            {selectedRoom.pricing.map((scheme) => {
-                                const discount = calculateDiscount(scheme);
-                                return (
-                                  <button
-                                      key={scheme.period}
-                                      onClick={() => setSelectedPeriod(scheme.period)}
-                                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all relative ${
-                                          selectedPeriod === scheme.period 
-                                          ? 'bg-gray-900 text-white border-gray-900' 
-                                          : 'bg-white text-gray-500 border-gray-200 hover:border-orange-500'
-                                      }`}
-                                  >
-                                      {periodLabels[scheme.period] || scheme.period}
-                                      {discount > 0 && (
-                                         <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[8px] px-1.5 rounded-full z-10">
-                                            -{discount}%
-                                         </span>
-                                      )}
-                                  </button>
-                                );
-                            })}
-                        </div>
+                  <div className="mb-6">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Pilih Durasi Sewa</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRoom.pricing.map((scheme) => {
+                        const discount = calculateDiscount(scheme);
+                        return (
+                          <button
+                            key={scheme.period}
+                            onClick={() => setSelectedPeriod(scheme.period)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all relative ${selectedPeriod === scheme.period
+                              ? 'bg-gray-900 text-white border-gray-900'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-orange-500'
+                              }`}
+                          >
+                            {periodLabels[scheme.period] || scheme.period}
+                            {discount > 0 && (
+                              <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[8px] px-1.5 rounded-full z-10">
+                                -{discount}%
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
+                  </div>
                 )}
 
                 {/* Facilities of Selected Room */}
                 <div className="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Fasilitas {selectedRoom.name}</p>
-                    <ul className="space-y-2">
-                        {selectedRoom.roomFacilities?.map((f, i) => (
-                             <li key={i} className="text-xs font-bold text-gray-600 flex items-center gap-2">
-                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                {f}
-                             </li>
-                        ))}
-                         {selectedRoom.bathroomFacilities?.map((f, i) => (
-                             <li key={`bath-${i}`} className="text-xs font-bold text-gray-600 flex items-center gap-2">
-                                <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                {f}
-                             </li>
-                        ))}
-                    </ul>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Fasilitas {selectedRoom.name}</p>
+                  <ul className="space-y-2">
+                    {selectedRoom.roomFacilities?.map((f, i) => (
+                      <li key={i} className="text-xs font-bold text-gray-600 flex items-center gap-2">
+                        <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        {f}
+                      </li>
+                    ))}
+                    {selectedRoom.bathroomFacilities?.map((f, i) => (
+                      <li key={`bath-${i}`} className="text-xs font-bold text-gray-600 flex items-center gap-2">
+                        <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
                 <div className="space-y-3">
-                  <button 
+                  <button
                     onClick={handleBookingClick}
                     disabled={selectedRoom.isAvailable === false}
-                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all active:scale-95 ${
-                        selectedRoom.isAvailable === false
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                        : 'bg-orange-500 text-white shadow-orange-100 hover:bg-orange-600'
-                    }`}
+                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all active:scale-95 ${selectedRoom.isAvailable === false
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                      : 'bg-orange-500 text-white shadow-orange-100 hover:bg-orange-600'
+                      }`}
                   >
                     {selectedRoom.isAvailable === false ? 'Kamar Penuh' : `Ajukan Sewa (${periodLabels[selectedPeriod] || selectedPeriod})`}
                   </button>
-                  <button 
+                  <button
                     onClick={() => onStartChat?.(kost.id)}
                     className="w-full bg-white text-gray-900 border-2 border-gray-100 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:border-gray-900 transition-all active:scale-95"
                   >
@@ -520,21 +564,21 @@ const KostDetail: React.FC<KostDetailProps> = ({ kost, onBack, onStartChat, user
           </div>
         </div>
       </div>
-      
+
       {isBookingModalOpen && (
-        <BookingModal 
-          kost={kost} 
-          variant={selectedRoom} 
+        <BookingModal
+          kost={kost}
+          variant={selectedRoom}
           initialPeriod={selectedPeriod}
-          onClose={() => setIsBookingModalOpen(false)} 
+          onClose={() => setIsBookingModalOpen(false)}
           onConfirm={handleConfirmBooking}
         />
       )}
 
       {isPaymentGatewayOpen && tempBookingData && (
-        <PaymentGateway 
+        <PaymentGateway
           amount={tempBookingData.total}
-          orderId={`BOOK-${kost.id.substring(0,4).toUpperCase()}-${Date.now().toString().substring(8)}`}
+          orderId={`BOOK-${kost.id.substring(0, 4).toUpperCase()}-${Date.now().toString().substring(8)}`}
           onPaymentSuccess={handlePaymentSuccess}
           onCancel={() => setIsPaymentGatewayOpen(false)}
         />

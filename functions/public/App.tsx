@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -17,6 +17,7 @@ import Profile from './pages/Profile';
 import KostDetail from './pages/KostDetail';
 import Dashboard from './pages/Dashboard';
 import SurveyService from './pages/SurveyService';
+import MyKost from './pages/MyKost';
 import { getPublishedProperties } from './userService';
 
 const App: React.FC = () => {
@@ -30,6 +31,28 @@ const App: React.FC = () => {
     type: 'kost' | 'product';
     id: string;
   } | null>(null);
+
+  // History Tracking for "Kembali/Back" feature
+  const pageHistory = useRef<Page[]>([Page.HOME]);
+  useEffect(() => {
+    const currentTop = pageHistory.current[pageHistory.current.length - 1];
+    if (currentTop !== activePage) {
+      pageHistory.current.push(activePage);
+      if (pageHistory.current.length > 20) {
+        pageHistory.current.shift(); // keep size manageable
+      }
+    }
+  }, [activePage]);
+
+  const handleBackNavigation = () => {
+    if (pageHistory.current.length > 1) {
+      pageHistory.current.pop(); // Remove current
+      const prev = pageHistory.current[pageHistory.current.length - 1];
+      setActivePage(prev);
+    } else {
+      setActivePage(user?.role === 'admin' ? Page.DASHBOARD_ADMIN : Page.HOME);
+    }
+  };
 
   // Fetch Public Listings on Mount
   const fetchListings = async () => {
@@ -281,6 +304,8 @@ const App: React.FC = () => {
         return <Contact />;
       case Page.SURVEY_SERVICE:
         return <SurveyService />;
+      case Page.MY_BOOKINGS:
+        return <MyKost user={user} onPageChange={setActivePage} />;
       case Page.LOGIN:
         if (user) {
           return user.role === 'admin'
@@ -295,6 +320,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
             onSaveSuccess={handleProfileSaveSuccess}
             forceEdit={!!pendingTransaction}
+            onBack={handleBackNavigation}
           />
         );
       case Page.DASHBOARD_ADMIN:

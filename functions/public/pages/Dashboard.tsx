@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Kost, RoomType, RoomPricing, PricingPeriod, DatabaseProduct } from '../types';
 import { FORMAT_CURRENCY } from '../constants';
+import { db } from '../firebase';
+import { collection, query, getDocs, orderBy, updateDoc, doc } from 'firebase/firestore';
 import {
     getAdminProperties, updatePropertyStatus, deleteProperty, addPropertyWithMedia, updatePropertyWithMedia, BasicPropertyInfo,
     getAllDatabases, addDatabaseProduct, updateDatabaseProduct, deleteDatabase
@@ -30,10 +32,13 @@ declare global {
 }
 
 // Helper Component for Leaflet Map
+// Helper Component for Leaflet Map
 const LocationPicker: React.FC<{ lat: number; lng: number; onLocationChange: (lat: number, lng: number, address: string) => void }> = ({ lat, lng, onLocationChange }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstance = useRef<any>(null);
     const markerInstance = useRef<any>(null);
+
+    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         if (!mapContainerRef.current) return;
@@ -68,6 +73,7 @@ const LocationPicker: React.FC<{ lat: number; lng: number; onLocationChange: (la
                 const data = await response.json();
                 const address = data.display_name || "Alamat tidak ditemukan";
                 onLocationChange(lat, lng, address);
+                setSearchQuery(address);
             } catch (error) {
                 console.error("Geocoding failed:", error);
                 onLocationChange(lat, lng, "Gagal memuat alamat");
@@ -104,15 +110,19 @@ const LocationPicker: React.FC<{ lat: number; lng: number; onLocationChange: (la
             if (Math.abs(currentLatLng.lat - lat) > 0.0001 || Math.abs(currentLatLng.lng - lng) > 0.0001) {
                 const newLatLng = [lat, lng];
                 markerInstance.current.setLatLng(newLatLng);
-                mapInstance.current.setView(newLatLng);
+                mapInstance.current.setView(newLatLng, 15);
             }
         }
     }, [lat, lng]);
 
-    return <div id="map" ref={mapContainerRef} style={{ height: '400px', width: '100%', border: '1px solid #ccc', borderRadius: '0.75rem', zIndex: 0 }} />;
+    // Handlers removed to be handled by Dashboard
+
+    return (
+        <div id="map" ref={mapContainerRef} style={{ height: '400px', width: '100%', border: '1px solid #ccc', borderRadius: '0.75rem', zIndex: 0 }} />
+    );
 };
 
-type DashboardMenu = 'analytics' | 'properties' | 'databases' | 'transactions_rent' | 'transactions_db' | 'mitra' | 'verification';
+type DashboardMenu = 'analytics' | 'properties' | 'databases' | 'transactions_rent' | 'transactions_db' | 'mitra' | 'verification' | 'complaints';
 
 const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [], onAdd, onEdit, onDelete, onRefreshListings }) => {
     const isAdmin = role === 'admin';
@@ -137,6 +147,57 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
     const [editingId, setEditingId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<string>('info');
     const [mapAddress, setMapAddress] = useState<string>("");
+
+
+    // --- SEARCH LOCATION STATE ---
+    const [searchLocationText, setSearchLocationText] = useState("");
+    const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+    const [searchLocationResults, setSearchLocationResults] = useState<any[]>([]);
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleSearchLocation = (text: string) => {
+        setSearchLocationText(text);
+
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        if (text.length < 3) { // Hanya cari jika teks cukup panjang
+            setSearchLocationResults([]);
+            setIsSearchingLocation(false);
+            return;
+        }
+
+        searchTimeoutRef.current = setTimeout(async () => {
+            setIsSearchingLocation(true);
+            try {
+                // Geocoding menggunakan Nominatim (OpenStreetMap)
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=5`, {
+                    headers: { 'User-Agent': 'RuangSinggah.id/1.0' }
+                });
+                const data = await response.json();
+                setSearchLocationResults(data);
+            } catch (error) {
+                console.error("Error searching location with Nominatim:", error);
+                setSearchLocationResults([]);
+            } finally {
+                setIsSearchingLocation(false);
+            }
+        }, 500); // Debounce selama 500ms
+    };
+
+    const handleSelectSearchResult = (result: any) => {
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        const address = result.display_name;
+
+        // Perbarui formData untuk menggerakkan peta
+        setFormData(prev => ({ ...prev, location: { lat, lng } }));
+        setMapAddress(address); // Perbarui input alamat di form
+
+        setSearchLocationText(address); // Set input pencarian dengan alamat lengkap
+        setSearchLocationResults([]); // Kosongkan hasil pencarian
+    };
 
     // DATABASES STATE
     const [dbProducts, setDbProducts] = useState<DatabaseProduct[]>([]);
@@ -174,14 +235,18 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
     // Form State (Property)
     const initialFormState: Partial<Kost> = {
         title: '', description: '', type: 'Campur', status: 'published', price: 0,
-        city: 'Bogor', campus: 'IPB', address: '', distanceToCampus: '',
-        location: { lat: -6.559, lng: 106.725 }, imageUrls: [], videoUrls: [], instagramUrl: '', tiktokUrl: '', facilities: [], rules: [], roomTypes: []
+        city: 'Bogor', address: '',
+        location: { lat: -6.559, lng: 106.725 }, imageUrls: [], videoUrls: [], instagramUrl: '', tiktokUrl: '', facilities: [], rules: [], roomTypes: [],
+        additionalFeePrice: 0, additionalFeeName: '', campuses: [], publicFacilities: []
     };
     const [formData, setFormData] = useState<Partial<Kost>>(initialFormState);
 
     // File Upload State (Property)
     const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
     const [newVideoFiles, setNewVideoFiles] = useState<File[]>([]);
+
+    const [tempRuleInput, setTempRuleInput] = useState('');
+    const [tempFacilityInput, setTempFacilityInput] = useState('');
 
     const sections = [
         { id: 'info', label: 'Informasi Dasar' },
@@ -218,9 +283,37 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
         }
     };
 
+    // COMPLAINTS STATE
+    const [complaints, setComplaints] = useState<any[]>([]);
+
+    const loadComplaints = async () => {
+        if (!isAdmin) return;
+        setLoading(true);
+        try {
+            const q = query(collection(db, 'complaints'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            setComplaints(snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })));
+        } catch (error) {
+            console.error("Gagal memuat komplain", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdateComplaintStatus = async (id: string, newStatus: string) => {
+        try {
+            await updateDoc(doc(db, 'complaints', id), { status: newStatus });
+            setComplaints((prev: any[]) => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+            alert('Status Komplain diperbarui ke ' + newStatus);
+        } catch (e) {
+            alert('Gagal mengupdate komplain');
+        }
+    };
+
     useEffect(() => {
         if (activeMenu === 'properties') loadProperties();
         if (activeMenu === 'databases') loadDatabases();
+        if (activeMenu === 'complaints') loadComplaints();
     }, [isAdmin, activeMenu]);
 
     // --- PROPERTY HANDLERS ---
@@ -410,6 +503,21 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
         arr.splice(index, 1); setFormData({ ...formData, [field]: arr });
     };
 
+    // Object Array Helpers (for campuses, publicFacilities)
+    const addObjectArrayItem = (field: 'campuses' | 'publicFacilities') => {
+        setFormData({ ...formData, [field]: [...(formData[field] || []), { name: '', distance: '', transportMode: 'walk' }] });
+    };
+    const updateObjectArrayItem = (field: 'campuses' | 'publicFacilities', index: number, key: 'name' | 'distance' | 'transportMode', value: string) => {
+        const arr = [...(formData[field] || [])];
+        arr[index] = { ...arr[index], [key]: value };
+        setFormData({ ...formData, [field]: arr });
+    };
+    const removeObjectArrayItem = (field: 'campuses' | 'publicFacilities', index: number) => {
+        const arr = [...(formData[field] || [])];
+        arr.splice(index, 1);
+        setFormData({ ...formData, [field]: arr });
+    };
+
     // File Helpers
     const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -528,6 +636,33 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
             case 'location':
                 return (
                     <div className="space-y-6">
+                        {/* --- INPUT PENCARIAN LOKASI BARU --- */}
+                        <div className="space-y-2 relative z-[1000]">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Cari Lokasi (Nama Jalan/Kota)</label>
+                            <input
+                                type="text"
+                                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"
+                                placeholder="Contoh: Jl. Sudirman, Jakarta..."
+                                value={searchLocationText}
+                                onChange={(e) => handleSearchLocation(e.target.value)}
+                            />
+                            {isSearchingLocation && <p className="text-xs text-gray-500 mt-1">Mencari...</p>}
+                            {searchLocationResults.length > 0 && (
+                                <ul className="absolute left-0 right-0 top-full bg-white border border-gray-200 rounded-xl mt-2 max-h-48 overflow-y-auto shadow-lg z-[1001]">
+                                    {searchLocationResults.map((result, index) => (
+                                        <li
+                                            key={index}
+                                            className="px-4 py-2 text-sm text-gray-800 cursor-pointer hover:bg-orange-50 border-b border-gray-50 last:border-b-0"
+                                            onClick={() => handleSelectSearchResult(result)}
+                                        >
+                                            {result.display_name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                        {/* --- AKHIR INPUT PENCARIAN LOKASI BARU --- */}
+
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-900">Lokasi Kost (dengan Peta)</h3>
                             <div className="rounded-xl overflow-hidden border border-gray-200">
@@ -535,7 +670,7 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                                     lat={formData.location?.lat || -6.559}
                                     lng={formData.location?.lng || 106.725}
                                     onLocationChange={(lat, lng, address) => {
-                                        setFormData({ ...formData, location: { lat, lng } });
+                                        setFormData(prev => ({ ...prev, location: { lat, lng } }));
                                         setMapAddress(address);
                                     }}
                                 />
@@ -591,20 +726,128 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                         <div className="grid grid-cols-1 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kota</label>
-                                <input type="text" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kampus Terdekat</label>
-                                <input type="text" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.campus} onChange={e => setFormData({ ...formData, campus: e.target.value })} />
+                                <input type="text" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detail Alamat (Nomor Rumah/RT/RW)</label>
-                            <textarea rows={2} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-orange-500" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Detail manual..." />
+                            <textarea rows={2} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-orange-500" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Detail manual..." />
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Jarak ke Kampus (Teks)</label>
-                            <input type="text" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.distanceToCampus} onChange={e => setFormData({ ...formData, distanceToCampus: e.target.value })} placeholder="Contoh: 5 Menit Jalan Kaki" />
+
+                        {/* KAMPUS TERDEKAT (ARRAY) */}
+                        <div className="space-y-4 pt-4 border-t border-gray-100">
+                            <h3 className="font-bold text-gray-900 border-l-4 border-orange-500 pl-3">Kampus Terdekat</h3>
+                            <div className="space-y-3">
+                                {formData.campuses?.map((campus, idx) => (
+                                    <div key={idx} className="flex flex-col gap-3 items-start bg-orange-50 p-4 rounded-xl border border-orange-100">
+                                        <div className="flex gap-4 w-full items-center">
+                                            <input
+                                                type="text"
+                                                value={campus.name}
+                                                onChange={(e) => updateObjectArrayItem('campuses', idx, 'name', e.target.value)}
+                                                className="w-1/2 bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-orange-500"
+                                                placeholder="Nama Kampus (Misal: IPB Dramaga)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={campus.distance}
+                                                onChange={(e) => updateObjectArrayItem('campuses', idx, 'distance', e.target.value)}
+                                                className="w-1/2 bg-white border border-orange-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-orange-500"
+                                                placeholder="Jarak Waktu (Misal: 5 Menit)"
+                                            />
+                                            <button type="button" onClick={() => removeObjectArrayItem('campuses', idx)} className="text-red-400 hover:text-red-600 bg-white p-2 border border-red-100 rounded-lg transition-colors shrink-0">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-orange-100">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kendaraan:</span>
+                                            <div className="flex gap-1">
+                                                {['walk', 'motorcycle', 'car', 'transit'].map(mode => {
+                                                    const icons: Record<string, React.ReactNode> = {
+                                                        'walk': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 10a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" /><path d="m7 21 3-8 1.5 3" /><path d="m16 21-2-6-1.5-3.5L9.5 10l-1.5 1.5" /><path d="M12 11.5 14 15l2-1.5" /></svg>,
+                                                        'motorcycle': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 16A3 3 0 1 0 5 22A3 3 0 1 0 5 16Z" /><path d="M19 16A3 3 0 1 0 19 22A3 3 0 1 0 19 16Z" /><path d="M5 19H19" /><path d="M6 16L9.673 8.653A2 2 0 0 1 11.458 7.5H16" /><path d="M16 7.5L18.428 12.356A2 2 0 0 0 20.214 13.5H22" /><path d="M11.5 7.5L13.5 3H16" /></svg>,
+                                                        'car': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>,
+                                                        'transit': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M8 6v6" /><path d="M15 6v6" /><path d="M2 12h19.6" /><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3" /><circle cx="7" cy="18" r="2" /><path d="M9 18h5" /><circle cx="16" cy="18" r="2" /></svg>
+                                                    };
+                                                    const isSelected = campus.transportMode === mode || (!campus.transportMode && mode === 'walk');
+                                                    return (
+                                                        <button
+                                                            key={mode}
+                                                            type="button"
+                                                            onClick={() => updateObjectArrayItem('campuses', idx, 'transportMode', mode)}
+                                                            className={`p-1.5 rounded-md transition-all ${isSelected ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100'}`}
+                                                            title={mode}
+                                                        >
+                                                            {icons[mode]}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={() => addObjectArrayItem('campuses')} className="text-xs font-bold text-orange-600 hover:bg-orange-50 px-3 py-2 border border-orange-200 rounded-lg transition-colors">
+                                    + Tambah Kampus Dekat Sini
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* FASILITAS PUBLIK (ARRAY) */}
+                        <div className="space-y-4 pt-4 border-t border-gray-100">
+                            <h3 className="font-bold text-gray-900 border-l-4 border-blue-500 pl-3">Fasilitas Publik Area Sekitar</h3>
+                            <div className="space-y-3">
+                                {formData.publicFacilities?.map((fac, idx) => (
+                                    <div key={idx} className="flex flex-col gap-3 items-start bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                        <div className="flex gap-4 w-full items-center">
+                                            <input
+                                                type="text"
+                                                value={fac.name}
+                                                onChange={(e) => updateObjectArrayItem('publicFacilities', idx, 'name', e.target.value)}
+                                                className="w-1/2 bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-blue-500"
+                                                placeholder="Nama Tempat (Misal: Halte Busway)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={fac.distance}
+                                                onChange={(e) => updateObjectArrayItem('publicFacilities', idx, 'distance', e.target.value)}
+                                                className="w-1/2 bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-blue-500"
+                                                placeholder="Jarak Waktu (Misal: 3 Menit)"
+                                            />
+                                            <button type="button" onClick={() => removeObjectArrayItem('publicFacilities', idx)} className="text-red-400 hover:text-red-600 bg-white p-2 border border-red-100 rounded-lg transition-colors shrink-0">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kendaraan:</span>
+                                            <div className="flex gap-1">
+                                                {['walk', 'motorcycle', 'car', 'transit'].map(mode => {
+                                                    const icons: Record<string, React.ReactNode> = {
+                                                        'walk': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 10a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" /><path d="m7 21 3-8 1.5 3" /><path d="m16 21-2-6-1.5-3.5L9.5 10l-1.5 1.5" /><path d="M12 11.5 14 15l2-1.5" /></svg>,
+                                                        'motorcycle': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 16A3 3 0 1 0 5 22A3 3 0 1 0 5 16Z" /><path d="M19 16A3 3 0 1 0 19 22A3 3 0 1 0 19 16Z" /><path d="M5 19H19" /><path d="M6 16L9.673 8.653A2 2 0 0 1 11.458 7.5H16" /><path d="M16 7.5L18.428 12.356A2 2 0 0 0 20.214 13.5H22" /><path d="M11.5 7.5L13.5 3H16" /></svg>,
+                                                        'car': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>,
+                                                        'transit': <svg className="w-5 h-5 text-current drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M8 6v6" /><path d="M15 6v6" /><path d="M2 12h19.6" /><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3" /><circle cx="7" cy="18" r="2" /><path d="M9 18h5" /><circle cx="16" cy="18" r="2" /></svg>
+                                                    };
+                                                    const isSelected = fac.transportMode === mode || (!fac.transportMode && mode === 'walk');
+                                                    return (
+                                                        <button
+                                                            key={mode}
+                                                            type="button"
+                                                            onClick={() => updateObjectArrayItem('publicFacilities', idx, 'transportMode', mode)}
+                                                            className={`p-1.5 rounded-md transition-all ${isSelected ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100'}`}
+                                                            title={mode}
+                                                        >
+                                                            {icons[mode]}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={() => addObjectArrayItem('publicFacilities')} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-2 border border-blue-200 rounded-lg transition-colors">
+                                    + Tambah Fasilitas Publik
+                                </button>
+                            </div>
                         </div>
                     </div>
                 );
@@ -707,10 +950,10 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                 return (
                     <div className="space-y-4">
                         <div className="flex gap-2">
-                            <input type="text" id="facilityInput" placeholder="Tambah Fasilitas (Contoh: WiFi, Parkir)" className="flex-grow bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none" onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addArrayItem('facilities', (e.target as HTMLInputElement).value), (e.target as HTMLInputElement).value = '')} />
-                            <button type="button" onClick={() => { const input = document.getElementById('facilityInput') as HTMLInputElement; addArrayItem('facilities', input.value); input.value = ''; }} className="bg-gray-900 text-white px-6 rounded-xl font-bold">Tambah</button>
+                            <input type="text" value={tempFacilityInput} onChange={e => setTempFacilityInput(e.target.value)} placeholder="Tambah Fasilitas (Contoh: WiFi, Parkir)" className="flex-grow bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none" onKeyPress={e => e.key === 'Enter' && tempFacilityInput.trim() && (e.preventDefault(), addArrayItem('facilities', tempFacilityInput.trim()), setTempFacilityInput(''))} />
+                            <button type="button" onClick={() => { if (tempFacilityInput.trim()) { addArrayItem('facilities', tempFacilityInput.trim()); setTempFacilityInput(''); } }} className="bg-gray-900 text-white px-6 rounded-xl font-bold">Tambah</button>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
                             {formData.facilities?.map((f, i) => (
                                 <div key={i} className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2">
                                     {f}
@@ -718,7 +961,25 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                                 </div>
                             ))}
                         </div>
-                    </div>
+
+                        <div className="pt-8 mt-4 border-t-2 border-dashed border-gray-200 space-y-4">
+                            <h3 className="font-bold text-gray-900 border-l-4 border-orange-500 pl-3">Biaya Tambahan (Opsional)</h3>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Keterangan Biaya Tambahan</label>
+                                    <input type="text" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.additionalFeeName || ''} onChange={e => setFormData({ ...formData, additionalFeeName: e.target.value })} placeholder="Contoh: Air, Listrik, Sampah, WiFi" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Nominal Ekstra</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rp</span>
+                                        <input type="number" min="0" className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold outline-none focus:border-orange-500" value={formData.additionalFeePrice || ''} onChange={e => setFormData({ ...formData, additionalFeePrice: e.target.value ? parseInt(e.target.value) : 0 })} placeholder="Contoh: 50000" />
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 italic">Isi jika kost menetapkan tagihan wajib bulanan di luar tagihan pokok kamar.</p>
+                        </div>
+                    </div >
                 );
             case 'rooms':
                 return (
@@ -830,12 +1091,68 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                         </button>
                     </div>
                 );
+            case 'rules':
+                return (
+                    <div className="space-y-4">
+                        <div className="flex gap-2">
+                            <input type="text" value={tempRuleInput} onChange={e => setTempRuleInput(e.target.value)} placeholder="Tambah Peraturan (Contoh: Dilarang bawa hewan peliharaan)" className="flex-grow bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold outline-none" onKeyPress={e => e.key === 'Enter' && tempRuleInput.trim() && (e.preventDefault(), addArrayItem('rules', tempRuleInput.trim()), setTempRuleInput(''))} />
+                            <button type="button" onClick={() => { if (tempRuleInput.trim()) { addArrayItem('rules', tempRuleInput.trim()); setTempRuleInput(''); } }} className="bg-gray-900 text-white px-6 rounded-xl font-bold">Tambah</button>
+                        </div>
+                        <div className="space-y-2">
+                            {formData.rules?.map((r, i) => (
+                                <div key={i} className="bg-white border border-gray-200 px-4 py-3 rounded-xl text-sm font-medium flex justify-between items-center">
+                                    <span className="text-gray-700">{i + 1}. {r}</span>
+                                    <button type="button" onClick={() => removeArrayItem('rules', i)} className="text-red-500 hover:bg-red-50 rounded-lg p-2 font-bold text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                </div>
+                            ))}
+                            {(!formData.rules || formData.rules.length === 0) && (
+                                <p className="text-sm text-gray-500 italic py-4 text-center">Belum ada peraturan ditambahkan.</p>
+                            )}
+                        </div>
+                    </div>
+                );
             default: return null;
         }
     };
 
     // --- DUMMY DATA UNTUK UI BARU ---
-    const dummyTransactions = [
+    const [dummyTransactions, setDummyTransactions] = useState<any[]>([
+        {
+            id: 'TRX-EKSTRA-001',
+            date: '2026-08-10',
+            name: 'Budi Santoso',
+            phone: '081234567891',
+            item: 'Kost Singgah 2',
+            roomType: 'Tagihan Tambahan',
+            periodLabel: '-',
+            paymentMethod: 'Transfer Bank BCA',
+            paymentType: 'transfer',
+            amount: 150000,
+            status: 'Menunggu',
+            startDate: '-',
+            endDate: '-',
+            transferProofUrl: 'https://via.placeholder.com/400x600?text=Bukti+Transfer+Tagihan',
+            invoiceId: `INV-EKS-${Math.floor(Math.random() * 10000)}`,
+            isExtra: true
+        },
+        {
+            id: 'TRX-EXT-002',
+            date: '2026-08-11',
+            name: 'Ayu Lestari',
+            phone: '081234567892',
+            item: 'Kost Tulip',
+            roomType: 'Kamar Standard AC',
+            periodLabel: 'Perpanjangan 1 Bulan',
+            paymentMethod: 'Transfer Bank Mandiri',
+            paymentType: 'transfer',
+            amount: 850000,
+            status: 'Menunggu',
+            startDate: '2026-08-15',
+            endDate: '2026-09-15',
+            transferProofUrl: 'https://via.placeholder.com/400x600?text=Bukti+Transfer+Perpanjangan',
+            invoiceId: `INV-EXT-${Math.floor(Math.random() * 10000)}`,
+            isExtension: true
+        },
         {
             id: 'TRX-2026-001',
             // Profil Penyewa
@@ -922,8 +1239,8 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
             platformFee: 250000,
             invoiceId: 'INV-2026-003',
         },
-    ];
-    const dummyVerifications = [
+    ]);
+    const [dummyVerifications, setDummyVerifications] = useState<any[]>([
         {
             id: 'SRV-2026-001',
             // Profil Pemesan
@@ -972,12 +1289,12 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
             paymentMethod: 'Midtrans - QRIS',
             transferProofUrl: null,
         },
-    ];
-    const dummyMitra = [
+    ]);
+    const [dummyMitra, setDummyMitra] = useState<any[]>([
         { id: 'MTR-001', name: 'Pak Haji Rohim', phone: '6281234568900', email: 'haji.rohim@email.com', date: '2026-02-21', status: 'Diproses', city: 'Bogor', propertyCount: 3, businessType: 'Kos-kosan' },
         { id: 'MTR-002', name: 'Ibu Sari Dewi', phone: '6285678901234', email: 'sari.dewi@email.com', date: '2026-02-22', status: 'Menunggu', city: 'Depok', propertyCount: 1, businessType: 'Kontrakan' },
-    ];
-    const dummyDbOrders = [
+    ]);
+    const [dummyDbOrders, setDummyDbOrders] = useState<any[]>([
         {
             id: 'DB-ORD-001',
             // Profil Pembeli
@@ -1030,8 +1347,113 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
             paymentMethod: 'Midtrans - GoPay',
             transferProofUrl: null,
         },
-    ];
+    ]);
 
+    // MANUAL ADDITION MODALS STATE
+    const [isAddingManualRent, setIsAddingManualRent] = useState(false);
+    const [manualRentForm, setManualRentForm] = useState<any>({});
+
+    const [isAddingManualDb, setIsAddingManualDb] = useState(false);
+    const [manualDbForm, setManualDbForm] = useState<any>({});
+
+    const [isAddingManualVerif, setIsAddingManualVerif] = useState(false);
+    const [manualVerifForm, setManualVerifForm] = useState<any>({});
+
+    const [isAddingManualMitra, setIsAddingManualMitra] = useState(false);
+    const [manualMitraForm, setManualMitraForm] = useState<any>({});
+    const handleManualRentSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newOrder = {
+            id: `TRX-MAN-${Math.floor(Math.random() * 10000)}`,
+            name: manualRentForm.name || '-',
+            phone: manualRentForm.phone || '-',
+            email: manualRentForm.email || '-',
+            item: manualRentForm.item || '-',
+            roomType: manualRentForm.roomType || '-',
+            periodLabel: manualRentForm.periodLabel || 'Bulanan',
+            paymentType: 'transfer',
+            paymentMethod: 'Manual Input',
+            date: manualRentForm.date || new Date().toISOString().split('T')[0],
+            startDate: manualRentForm.startDate || '-',
+            endDate: manualRentForm.endDate || '-',
+            status: manualRentForm.status || 'Selesai',
+            amount: Number(manualRentForm.amount) || 0,
+            platformFee: 0,
+            invoiceId: `INV-MAN-${Math.floor(Math.random() * 10000)}`,
+        };
+        setDummyTransactions([newOrder, ...dummyTransactions]);
+        setIsAddingManualRent(false);
+        setManualRentForm({});
+    };
+
+    const handleManualDbSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newOrder = {
+            id: `DB-MAN-${Math.floor(Math.random() * 1000)}`,
+            name: manualDbForm.name || '-',
+            phone: manualDbForm.phone || '-',
+            email: manualDbForm.email || '-',
+            dbName: manualDbForm.dbName || '-',
+            dbType: manualDbForm.dbType || '-',
+            dbCity: manualDbForm.dbCity || '-',
+            dbYear: manualDbForm.dbYear || new Date().getFullYear().toString(),
+            paymentType: 'transfer',
+            paymentMethod: 'Manual Input',
+            date: manualDbForm.date || new Date().toISOString().split('T')[0],
+            status: manualDbForm.status || 'Selesai',
+            amount: Number(manualDbForm.amount) || 0,
+            platformFee: 0,
+            invoiceId: `INV-DB-MAN-${Math.floor(Math.random() * 1000)}`,
+        };
+        setDummyDbOrders([newOrder, ...dummyDbOrders]);
+        setIsAddingManualDb(false);
+        setManualDbForm({});
+    };
+
+    const handleManualVerifSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newOrder = {
+            id: `SRV-MAN-${Math.floor(Math.random() * 1000)}`,
+            name: manualVerifForm.name || '-',
+            phone: manualVerifForm.phone || '-',
+            email: manualVerifForm.email || '-',
+            kostName: manualVerifForm.kostName || '-',
+            ownerPhone: manualVerifForm.ownerPhone || '-',
+            kostAddress: manualVerifForm.kostAddress || '-',
+            source: 'Manual Input',
+            surveyDate: manualVerifForm.surveyDate || '-',
+            surveyTime: manualVerifForm.surveyTime || '-',
+            notes: manualVerifForm.notes || '-',
+            paymentType: 'transfer',
+            paymentMethod: 'Manual Input',
+            date: manualVerifForm.date || new Date().toISOString().split('T')[0],
+            status: manualVerifForm.status || 'Selesai',
+            amount: Number(manualVerifForm.amount) || 0,
+            platformFee: 0,
+            invoiceId: `INV-SRV-MAN-${Math.floor(Math.random() * 1000)}`,
+        };
+        setDummyVerifications([newOrder, ...dummyVerifications]);
+        setIsAddingManualVerif(false);
+        setManualVerifForm({});
+    };
+
+    const handleManualMitraSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newOrder = {
+            id: `MTR-MAN-${Math.floor(Math.random() * 1000)}`,
+            name: manualMitraForm.name || '-',
+            phone: manualMitraForm.phone || '-',
+            email: manualMitraForm.email || '-',
+            city: manualMitraForm.city || '-',
+            businessType: manualMitraForm.businessType || 'Kos-kosan',
+            propertyCount: Number(manualMitraForm.propertyCount) || 1,
+            date: manualMitraForm.date || new Date().toISOString().split('T')[0],
+            status: manualMitraForm.status || 'Diterima',
+        };
+        setDummyMitra([newOrder, ...dummyMitra]);
+        setIsAddingManualMitra(false);
+        setManualMitraForm({});
+    };
 
     const renderSidebar = () => (
         <aside className="w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-80px)] hidden md:flex flex-col sticky top-20 z-10">
@@ -1060,6 +1482,7 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                 </div>
                 <SidebarItem icon="✅" label="Verifikasi Kost" isActive={activeMenu === 'verifikasi'} onClick={() => setActiveMenu('verifikasi')} />
                 <SidebarItem icon="🤝" label="Pendaftar Mitra" isActive={activeMenu === 'mitra'} onClick={() => setActiveMenu('mitra')} />
+                <SidebarItem icon="🛠️" label="Komplain" isActive={activeMenu === 'complaints'} onClick={() => setActiveMenu('complaints')} />
             </nav>
         </aside>
     );
@@ -1512,6 +1935,64 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
         </div>
     );
 
+    const renderComplaints = () => (
+        <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-10">
+            <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Daftar Komplain Penghuni</h2>
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm overflow-hidden">
+                {complaints.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400">Belum ada komplain yang masuk.</div>
+                ) : (
+                    <table className="w-full text-left text-sm text-gray-500">
+                        <thead className="bg-gray-50/50 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-100">
+                            <tr>
+                                <th className="px-6 py-4">Laporan</th>
+                                <th className="px-6 py-4">Info User</th>
+                                <th className="px-6 py-4">Problem</th>
+                                <th className="px-6 py-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {complaints.map(c => (
+                                <tr key={c.id}>
+                                    <td className="px-6 py-4">
+                                        <p className="font-bold text-gray-900">{c.createdAt ? new Date(c.createdAt.seconds * 1000).toLocaleDateString('id-ID') : '-'}</p>
+                                        <p className="text-[10px] text-gray-400 uppercase">{c.id.slice(0, 8)}</p>
+                                        <span className={`inline-flex px-3 py-1 text-[10px] font-black uppercase mt-2 tracking-wider rounded-lg border ${c.status === 'open' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                                            {c.status === 'open' ? 'TERBUKA' : 'SELESAI'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="font-bold text-gray-700">{c.userName || '-'}</p>
+                                        <p className="text-xs text-blue-500 cursor-pointer hover:underline" onClick={() => window.open('https://wa.me/' + (c.userPhone || ''))}>{c.userPhone || '-'}</p>
+                                        <p className="text-xs text-gray-500 mt-1 font-bold">{c.kostName || '-'}</p>
+                                    </td>
+                                    <td className="px-6 py-4 max-w-xs">
+                                        <p className="font-bold text-red-600 truncate">{c.title || '-'}</p>
+                                        <p className="text-xs text-gray-500 line-clamp-2 mt-1">{c.description || '-'}</p>
+                                        {c.photoUrl && (
+                                            <button onClick={() => window.open(c.photoUrl, '_blank')} className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                                📸 Lihat Foto Lampiran
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        {c.status === 'open' ? (
+                                            <button onClick={() => handleUpdateComplaintStatus(c.id, 'closed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 shadow-sm transition-colors">
+                                                Tandai Selesai
+                                            </button>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs font-bold">Teratasi ✔️</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </div>
+    );
+
     const renderVerifikasi = () => (
         <div className="animate-in fade-in duration-500 max-w-4xl mx-auto space-y-8 pb-10">
             <div className="bg-gradient-to-br from-violet-600 to-fuchsia-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
@@ -1618,7 +2099,13 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
 
     const renderRentTransactions = () => (
         <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Manajemen Transaksi Sewa Kost</h2>
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Manajemen Transaksi Sewa Kost</h2>
+                <button onClick={() => setIsAddingManualRent(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                    Tambah Manual
+                </button>
+            </div>
             <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3 mb-6">
                 <div className="text-blue-500 shrink-0">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -1930,7 +2417,13 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
 
     const renderDbTransactions = () => (
         <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Manajemen Pembelian Database</h2>
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Manajemen Pembelian Database</h2>
+                <button onClick={() => setIsAddingManualDb(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                    Tambah Manual
+                </button>
+            </div>
             <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3 mb-2">
                 <span className="text-blue-500 shrink-0">📦</span>
                 <p className="text-sm font-medium text-blue-900">Transaksi via <strong>Transfer Bank</strong> perlu verifikasi bukti pembayaran sebelum akses database diberikan kepada pembeli.</p>
@@ -2065,7 +2558,13 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
 
     const renderVerifikasiRequests = () => (
         <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Permohonan Jasa Survey Kost</h2>
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Permohonan Jasa Survey Kost</h2>
+                <button onClick={() => setIsAddingManualVerif(true)} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                    Tambah Manual
+                </button>
+            </div>
             <div className="bg-violet-50/50 border border-violet-100 rounded-xl p-4 flex gap-3 mb-2">
                 <span className="text-violet-500 shrink-0">🔍</span>
                 <p className="text-sm font-medium text-violet-900">Harga layanan: <strong>Rp 70.000/lokasi</strong>. Transfer Bank perlu verifikasi manual sebelum survey dijadwalkan.</p>
@@ -2133,7 +2632,13 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
 
     const renderMitraRequests = () => (
         <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Pendaftar Mitra</h2>
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Pendaftar Mitra</h2>
+                <button onClick={() => setIsAddingManualMitra(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                    Tambah Manual
+                </button>
+            </div>
             <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4 flex gap-3 mb-2">
                 <span className="text-orange-500 shrink-0">🤝</span>
                 <p className="text-sm font-medium text-orange-900">Daftar pendaftar yang ingin bergabung sebagai <strong>Mitra Pemilik Kost</strong>. Hubungi via WA untuk verifikasi dan onboarding.</p>
@@ -2212,6 +2717,7 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                                 <option value="transactions_db">📦 Pembelian DB</option>
                                 <option value="verification">✅ Verifikasi Kost</option>
                                 <option value="mitra">🤝 Pendaftar Mitra</option>
+                                <option value="complaints">🛠️ Komplain</option>
                             </select>
                         </div>
                     )}
@@ -2227,6 +2733,7 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                             {activeMenu === 'transactions_db' && renderDbTransactions()}
                             {activeMenu === 'verifikasi' && renderVerifikasiRequests()}
                             {activeMenu === 'mitra' && renderMitraRequests()}
+                            {activeMenu === 'complaints' && renderComplaints()}
 
                             {/* VIEW MODE: VERIFIKASI KOST (CATALOG VIEW) */}
                             {activeMenu === 'verification' && renderVerifikasi()}
@@ -2538,6 +3045,155 @@ const Dashboards: React.FC<DashboardProps> = ({ role, onPageChange, listings = [
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan Database'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL MANUAL ADD RENT */}
+                {isAddingManualRent && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsAddingManualRent(false)}></div>
+                        <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <div>
+                                    <h2 className="text-xl font-black uppercase text-gray-900">Tambah Sewa Manual</h2>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Catat transaksi di luar sistem</p>
+                                </div>
+                                <button onClick={() => setIsAddingManualRent(false)} className="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-full text-gray-400 hover:text-gray-900 hover:border-gray-900 transition-colors">&times;</button>
+                            </div>
+                            <form onSubmit={handleManualRentSubmit} className="flex-grow overflow-y-auto p-6 space-y-5">
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] font-black tracking-widest text-orange-500 uppercase border-b border-orange-100 pb-2">Informasi Penyewa</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Nama Penyewa</label><input required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white focus:ring-2 focus:ring-orange-500/20 outline-none" value={manualRentForm.name || ''} onChange={e => setManualRentForm({ ...manualRentForm, name: e.target.value })} placeholder="Cth: Budi" /></div>
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">WhatsApp</label><input required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white focus:ring-2 focus:ring-orange-500/20 outline-none" value={manualRentForm.phone || ''} onChange={e => setManualRentForm({ ...manualRentForm, phone: e.target.value })} placeholder="628..." /></div>
+                                    </div>
+
+                                    <h3 className="text-[10px] font-black tracking-widest text-orange-500 uppercase border-b border-orange-100 pb-2 pt-2">Detail Pemesanan Kost</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Nama Kost</label><input required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.item || ''} onChange={e => setManualRentForm({ ...manualRentForm, item: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Tipe Kamar</label><input required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.roomType || ''} onChange={e => setManualRentForm({ ...manualRentForm, roomType: e.target.value })} /></div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase">Durasi</label>
+                                            <select className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.periodLabel || 'Bulanan'} onChange={e => setManualRentForm({ ...manualRentForm, periodLabel: e.target.value })}>
+                                                <option value="Harian">Harian</option><option value="Mingguan">Mingguan</option><option value="Bulanan">Bulanan</option><option value="Tahunan">Tahunan</option>
+                                            </select>
+                                        </div>
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Harga Total (Rp)</label><input required type="number" className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.amount || ''} onChange={e => setManualRentForm({ ...manualRentForm, amount: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Tgl Masuk</label><input type="date" required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.startDate || ''} onChange={e => setManualRentForm({ ...manualRentForm, startDate: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500 uppercase">Tgl Keluar</label><input type="date" required className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.endDate || ''} onChange={e => setManualRentForm({ ...manualRentForm, endDate: e.target.value })} /></div>
+                                        <div className="col-span-2">
+                                            <label className="text-xs font-bold text-gray-500 uppercase">Status</label>
+                                            <select className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:bg-white outline-none" value={manualRentForm.status || 'Selesai'} onChange={e => setManualRentForm({ ...manualRentForm, status: e.target.value })}>
+                                                <option value="Selesai">Selesai (Sudah Bayar & Masuk)</option>
+                                                <option value="Menunggu">Menunggu Konfirmasi & Bayar</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all mt-6">Simpan Transaksi Sewa</button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL MANUAL ADD DB PEMEBLIAN */}
+                {isAddingManualDb && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsAddingManualDb(false)}></div>
+                        <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <div><h2 className="text-xl font-black uppercase text-gray-900">Tambah Beli DB Manual</h2><p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Catat transaksi di luar sistem</p></div>
+                                <button onClick={() => setIsAddingManualDb(false)} className="w-8 h-8 border rounded-full">&times;</button>
+                            </div>
+                            <form onSubmit={handleManualDbSubmit} className="flex-grow overflow-y-auto p-6 space-y-5">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Nama Pembeli</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.name || ''} onChange={e => setManualDbForm({ ...manualDbForm, name: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">WhatsApp</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.phone || ''} onChange={e => setManualDbForm({ ...manualDbForm, phone: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Email</label><input required type="email" className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.email || ''} onChange={e => setManualDbForm({ ...manualDbForm, email: e.target.value })} /></div>
+                                    <div className="col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Judul Database</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.dbName || ''} onChange={e => setManualDbForm({ ...manualDbForm, dbName: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Kategori / Tipe</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.dbType || ''} onChange={e => setManualDbForm({ ...manualDbForm, dbType: e.target.value })} placeholder="Data Mahasiswa" /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Tahun</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.dbYear || ''} onChange={e => setManualDbForm({ ...manualDbForm, dbYear: e.target.value })} placeholder="2025" /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Harga (Rp)</label><input required type="number" className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.amount || ''} onChange={e => setManualDbForm({ ...manualDbForm, amount: e.target.value })} /></div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Status</label>
+                                        <select className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualDbForm.status || 'Selesai'} onChange={e => setManualDbForm({ ...manualDbForm, status: e.target.value })}>
+                                            <option value="Selesai">Selesai (Sudah Dikasih Akses)</option>
+                                            <option value="Menunggu">Menunggu</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all mt-6">Simpan Transaksi DB</button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL MANUAL ADD VERIFIKASI KOST */}
+                {isAddingManualVerif && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsAddingManualVerif(false)}></div>
+                        <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <div><h2 className="text-xl font-black uppercase text-gray-900">Tambah Verifikasi Manual</h2><p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Catat jasa layanan surveyor</p></div>
+                                <button onClick={() => setIsAddingManualVerif(false)} className="w-8 h-8 border rounded-full">&times;</button>
+                            </div>
+                            <form onSubmit={handleManualVerifSubmit} className="flex-grow overflow-y-auto p-6 space-y-5">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Nama Pemesan</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.name || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, name: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">WhatsApp</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.phone || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, phone: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Email</label><input required type="email" className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.email || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, email: e.target.value })} /></div>
+                                    <div className="col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Nama Kost Dituju</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.kostName || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, kostName: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Jadwal Survey</label><input type="date" required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.surveyDate || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, surveyDate: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Jam (WIB)</label><input type="time" required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.surveyTime || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, surveyTime: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Harga (Rp)</label><input required type="number" className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.amount || ''} onChange={e => setManualVerifForm({ ...manualVerifForm, amount: e.target.value })} /></div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Status</label>
+                                        <select className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualVerifForm.status || 'Selesai'} onChange={e => setManualVerifForm({ ...manualVerifForm, status: e.target.value })}>
+                                            <option value="Selesai">Selesai (Sudah Disurvey)</option>
+                                            <option value="Dijadwalkan">Dijadwalkan</option>
+                                            <option value="Menunggu">Menunggu</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full py-3.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all mt-6">Simpan Data Survey</button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL MANUAL ADD MITRA */}
+                {isAddingManualMitra && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsAddingManualMitra(false)}></div>
+                        <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <div><h2 className="text-xl font-black uppercase text-gray-900">Tambah Mitra Manual</h2><p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Catat pendaftaran mitra via offline/WA</p></div>
+                                <button onClick={() => setIsAddingManualMitra(false)} className="w-8 h-8 border rounded-full">&times;</button>
+                            </div>
+                            <form onSubmit={handleManualMitraSubmit} className="flex-grow overflow-y-auto p-6 space-y-5">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Nama Mitra Pemilik</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.name || ''} onChange={e => setManualMitraForm({ ...manualMitraForm, name: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">WhatsApp</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.phone || ''} onChange={e => setManualMitraForm({ ...manualMitraForm, phone: e.target.value })} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Kota Domisili</label><input required className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.city || ''} onChange={e => setManualMitraForm({ ...manualMitraForm, city: e.target.value })} /></div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Kategori Bisnis</label>
+                                        <select className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.businessType || 'Kos-kosan'} onChange={e => setManualMitraForm({ ...manualMitraForm, businessType: e.target.value })}>
+                                            <option value="Kos-kosan">Kos-kosan</option><option value="Apartemen">Apartemen</option><option value="Kontrakan">Kontrakan</option>
+                                        </select>
+                                    </div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">Jml. Properti</label><input required type="number" className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.propertyCount || ''} onChange={e => setManualMitraForm({ ...manualMitraForm, propertyCount: e.target.value })} /></div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Status Mitra</label>
+                                        <select className="w-full mt-1 bg-gray-50 border rounded-xl px-4 py-2 text-sm font-bold" value={manualMitraForm.status || 'Diterima'} onChange={e => setManualMitraForm({ ...manualMitraForm, status: e.target.value })}>
+                                            <option value="Diterima">Diterima (Aktif)</option>
+                                            <option value="Menunggu">Menunggu</option>
+                                            <option value="Diproses">Diproses Hubungi WA</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all mt-6">Simpan Data Mitra</button>
+                            </form>
                         </div>
                     </div>
                 )}
