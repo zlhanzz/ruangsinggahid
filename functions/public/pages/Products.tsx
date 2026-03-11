@@ -23,7 +23,7 @@ const Products: React.FC<ProductsProps> = ({ user, onLoginRedirect, validateProf
 
   const [detailItem, setDetailItem] = useState<DatabaseProduct | null>(null);
   const [showPayment, setShowPayment] = useState<DatabaseProduct | null>(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [purchasedItem, setPurchasedItem] = useState<DatabaseProduct | null>(null);
 
   // Fetch Data
   useEffect(() => {
@@ -173,23 +173,6 @@ const Products: React.FC<ProductsProps> = ({ user, onLoginRedirect, validateProf
       </div>
     </div>
   );
-
-  if (paymentSuccess) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center space-y-8 animate-in zoom-in-95 duration-500">
-          <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-xl">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <div>
-            <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight mb-4">Pembelian Berhasil!</h2>
-            <p className="text-gray-500 font-medium leading-relaxed">Terima kasih. Tautan akses Database Kost akan dikirimkan ke email/WhatsApp Anda dalam maksimal 5 menit.</p>
-          </div>
-          <button onClick={() => setPaymentSuccess(false)} className="bg-orange-500 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-orange-100 active:scale-95 transition-all w-full">Kembali ke Katalog</button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white pb-12">
@@ -353,7 +336,7 @@ const Products: React.FC<ProductsProps> = ({ user, onLoginRedirect, validateProf
 
       {/* DETAIL MODAL - MOBILE OPTIMIZED */}
       {detailItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md transition-opacity" onClick={() => setDetailItem(null)}></div>
 
           <div className="relative bg-white w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-[3rem] overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-500 shadow-2xl flex flex-col">
@@ -459,11 +442,38 @@ const Products: React.FC<ProductsProps> = ({ user, onLoginRedirect, validateProf
           amount={showPayment.price}
           orderId={`DB-${showPayment.id.substring(0, 6).toUpperCase()}`}
           onPaymentSuccess={() => {
+            setPurchasedItem(showPayment);
             setShowPayment(null);
-            setPaymentSuccess(true);
           }}
           onCancel={() => setShowPayment(null)}
         />
+      )}
+
+      {/* Success Modal */}
+      {purchasedItem && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md" onClick={() => setPurchasedItem(null)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-2">Pembelian Berhasil!</h3>
+            <p className="text-sm font-medium text-gray-600 mb-6 leading-relaxed">
+              Terima kasih! Database <span className="font-bold text-gray-900">{purchasedItem.campus}</span> telah berhasil terkirim ke alamat email Anda secara otomatis oleh sistem kami.
+            </p>
+            <div className="bg-orange-50 rounded-xl p-4 border border-orange-100 mb-8">
+              <p className="text-[10px] sm:text-xs font-bold text-orange-600 uppercase tracking-widest leading-relaxed">
+                Silakan cek kotak masuk (Inbox) atau direktori Spam pada Email Anda untuk mengunduh filenya.
+              </p>
+            </div>
+            <button
+              onClick={() => setPurchasedItem(null)}
+              className="w-full bg-gray-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-orange-500 transition-colors active:scale-95"
+            >
+              Tutup & Kembali
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

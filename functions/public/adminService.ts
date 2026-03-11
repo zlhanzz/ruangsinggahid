@@ -893,3 +893,41 @@ export async function getDatabaseDetails(databaseId: string): Promise<DatabasePr
     }
     return null;
 }
+
+// --- MITRA REGISTRATION FUNCTIONS ---
+
+export async function getMitraRegistrations(): Promise<any[]> {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Unauthorized");
+
+    const isAdmin = await checkIfUserIsAdmin(user.uid);
+    if (!isAdmin) throw new Error("Access Denied");
+
+    const mitraRef = collection(db, "mitra_requests");
+    const q = query(mitraRef, orderBy("timestamp", "desc"));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            // Format date for UI compatibility
+            date: data.timestamp ? new Date(data.timestamp.toMillis()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari Ini'
+        };
+    });
+}
+
+export async function updateMitraRegistrationStatus(id: string, status: string): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Unauthorized");
+
+    const isAdmin = await checkIfUserIsAdmin(user.uid);
+    if (!isAdmin) throw new Error("Access Denied");
+
+    const docRef = doc(db, "mitra_requests", id);
+    await updateDoc(docRef, {
+        status: status,
+        updatedAt: serverTimestamp()
+    });
+}

@@ -54,11 +54,11 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
   ];
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-4 overflow-hidden">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-0 sm:p-4 overflow-hidden">
       <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-lg" onClick={onCancel}></div>
-      
+
       <div className="relative bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-10 duration-500">
-        
+
         {/* Header Mobile Summary */}
         <div className="bg-gray-900 p-6 sm:p-8 text-white">
           <div className="flex justify-between items-start mb-4">
@@ -73,7 +73,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
-          
+
           <div className="flex justify-between items-end">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Tagihan</p>
@@ -89,10 +89,10 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
         {/* Payment Methods Area */}
         <div className="flex-grow p-6 sm:p-10 overflow-y-auto space-y-6 bg-white">
           <h2 className="text-lg font-black uppercase tracking-tight text-gray-900">Pilih Metode Pembayaran</h2>
-          
+
           {/* 1. QRIS */}
           <div className={`rounded-3xl border-2 transition-all ${mainMethod === 'qris' ? 'border-orange-500 bg-orange-50/30' : 'border-gray-50'}`}>
-            <button 
+            <button
               onClick={() => { setMainMethod('qris'); setSubMethod(null); }}
               className="w-full flex items-center gap-4 p-5"
             >
@@ -102,7 +102,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Gopay, OVO, Dana, ShopeePay</p>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${mainMethod === 'qris' ? 'border-orange-500 bg-orange-500 text-white' : 'border-gray-200'}`}>
-                {mainMethod === 'qris' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>}
+                {mainMethod === 'qris' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>}
               </div>
             </button>
             {mainMethod === 'qris' && (
@@ -117,7 +117,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
 
           {/* 2. Virtual Account */}
           <div className={`rounded-3xl border-2 transition-all ${mainMethod === 'va' ? 'border-orange-500 bg-orange-50/30' : 'border-gray-50'}`}>
-            <button 
+            <button
               onClick={() => { setMainMethod('va'); setSubMethod(null); }}
               className="w-full flex items-center gap-4 p-5"
             >
@@ -127,13 +127,13 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">BRI, BCA, Mandiri, BSI</p>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${mainMethod === 'va' ? 'border-orange-500 bg-orange-500 text-white' : 'border-gray-200'}`}>
-                {mainMethod === 'va' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>}
+                {mainMethod === 'va' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>}
               </div>
             </button>
             {mainMethod === 'va' && (
               <div className="px-5 pb-5 grid grid-cols-1 gap-2 animate-in slide-in-from-top-2">
                 {vaBanks.map(bank => (
-                  <button 
+                  <button
                     key={bank.id}
                     onClick={() => setSubMethod(bank.id)}
                     className={`flex items-center justify-between p-4 rounded-xl border transition-all ${subMethod === bank.id ? 'bg-white border-orange-500 shadow-sm' : 'bg-white/50 border-gray-100 hover:bg-white'}`}
@@ -148,7 +148,7 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
 
           {/* 3. Transfer Bank Manual */}
           <div className={`rounded-3xl border-2 transition-all ${mainMethod === 'transfer' ? 'border-orange-500 bg-orange-50/30' : 'border-gray-50'}`}>
-            <button 
+            <button
               onClick={() => { setMainMethod('transfer'); setSubMethod(null); }}
               className="w-full flex items-center gap-4 p-5"
             >
@@ -158,20 +158,20 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Verifikasi manual 1x24 jam</p>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${mainMethod === 'transfer' ? 'border-orange-500 bg-orange-500 text-white' : 'border-gray-200'}`}>
-                {mainMethod === 'transfer' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>}
+                {mainMethod === 'transfer' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>}
               </div>
             </button>
             {mainMethod === 'transfer' && (
               <div className="px-5 pb-5 space-y-3 animate-in slide-in-from-top-2">
                 {manualAccounts.map(acc => (
-                  <button 
+                  <button
                     key={acc.id}
                     onClick={() => setSubMethod(acc.id)}
                     className={`w-full text-left p-4 rounded-2xl border transition-all ${subMethod === acc.id ? 'bg-white border-orange-500 shadow-md' : 'bg-white/50 border-gray-100'}`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                       <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{acc.name} Official</span>
-                       <span className="text-lg">{acc.icon}</span>
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{acc.name} Official</span>
+                      <span className="text-lg">{acc.icon}</span>
                     </div>
                     <p className="text-sm font-black text-gray-900 tracking-tight">{acc.no}</p>
                     <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">{acc.owner}</p>
@@ -189,16 +189,15 @@ const PaymentGateway: React.FC<PaymentGatewayProps> = ({ amount, orderId, onPaym
 
         {/* Footer Actions */}
         <div className="p-6 sm:p-10 border-t border-gray-50 bg-gray-50/50">
-          <button 
+          <button
             onClick={handlePay}
             disabled={!mainMethod || (mainMethod !== 'qris' && !subMethod) || isProcessing}
-            className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 active:scale-95 ${
-              (!mainMethod || (mainMethod !== 'qris' && !subMethod)) 
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                : isProcessing 
-                  ? 'bg-orange-400 text-white' 
+            className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 active:scale-95 ${(!mainMethod || (mainMethod !== 'qris' && !subMethod))
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : isProcessing
+                  ? 'bg-orange-400 text-white'
                   : 'bg-orange-500 text-white shadow-orange-100 hover:bg-orange-600'
-            }`}
+              }`}
           >
             {isProcessing ? (
               <>

@@ -72,7 +72,7 @@ const Home: React.FC<HomeProps> = ({ onPageChange, onKostSelect, user, listings 
                 className="w-full sm:w-auto bg-black text-white border-2 border-gray-900 hover:border-black px-6 py-4 sm:px-10 sm:py-5 rounded-2xl sm:rounded-[2rem] font-black text-xs sm:text-sm uppercase tracking-widest hover:bg-gray-900 transition-all shadow-xl hover:shadow-2xl active:scale-95 flex items-center justify-center gap-2 sm:gap-3 group"
               >
                 <HomeIcon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-white transition-colors" />
-                Daftar Pemilik Kost
+                Daftar Mitra Kost
               </button>
             </div>
           </div>
